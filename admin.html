@@ -56,20 +56,35 @@
 </div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzmDLbPgAmXTnmddkRjWopiELi-HsZcEQwbsedfkrzwp3D4Nd2ye_6Auqt59DmMVQd4QQ/exec';
+const API = 'PEGA_AQUI_TU_URL_EXEC'; // URL del despliegue de Apps Script que termina en /exec
+
+async function leerRespuesta(res) {
+  const texto = await res.text();
+  let data;
+  try {
+    data = JSON.parse(texto);
+  } catch (e) {
+    throw new Error('El servidor no devolvió JSON. Comprueba la URL /exec y el despliegue de Apps Script.');
+  }
+  if (!res.ok) throw new Error(data.error || `Error HTTP ${res.status}`);
+  return data;
+}
 
 async function fetchAPI(params) {
   const url = API + '?' + new URLSearchParams(params);
   const res = await fetch(url);
-  return res.json();
+  return leerRespuesta(res);
 }
+
 async function postAPI(body) {
-  const res = await fetch(API, {
+  // Enviamos la acción por URL y por cuerpo para evitar que se pierda al interpretar el POST.
+  const url = API + '?action=' + encodeURIComponent(body.action || '');
+  const res = await fetch(url, {
     method: 'POST',
     body: JSON.stringify(body),
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
   });
-  return res.json();
+  return leerRespuesta(res);
 }
 
 async function sincronizar() {
@@ -95,7 +110,10 @@ async function sincronizar() {
 
 async function cargarPendientes() {
   const cont = document.getElementById('tabla-pendientes');
+  try {
   const data = await fetchAPI({ action: 'obtenerPendientesAdmin' });
+  if (data.error) throw new Error(data.error);
+  if (!Array.isArray(data)) throw new Error('Respuesta inesperada al consultar solicitudes.');
   if (!data.length) {
     cont.innerHTML = '<div class="empty">No hay solicitudes pendientes</div>';
     return;
@@ -116,6 +134,9 @@ async function cargarPendientes() {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = `<div class="empty">No se pudieron cargar las solicitudes: ${e.message}</div>`;
+  }
 }
 
 async function aprobar(id, aprobado) {
@@ -131,7 +152,10 @@ async function aprobar(id, aprobado) {
 
 async function cargarLunch() {
   const cont = document.getElementById('tabla-lunch');
+  try {
   const data = await fetchAPI({ action: 'obtenerTodos' });
+  if (data.error) throw new Error(data.error);
+  if (!Array.isArray(data)) throw new Error('Respuesta inesperada al consultar lunches.');
   if (!data.length) {
     cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
     return;
@@ -148,6 +172,9 @@ async function cargarLunch() {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = `<div class="empty">No se pudieron cargar los lunches: ${e.message}</div>`;
+  }
 }
 
 cargarPendientes();
