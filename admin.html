@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Team Adrian</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Montserrat',sans-serif;background:#F7F8FA;color:#1A1A1A;padding:24px}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{font-size:22px;font-weight:800;margin-bottom:6px}
+  .sub{color:#6B6B6B;font-size:13px;margin-bottom:24px}
+  .card{background:#fff;border:1px solid #E6E8EC;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{font-size:15px;font-weight:800;margin-bottom:14px;color:#DF0000}
+  button{font-family:inherit;font-weight:800;font-size:13px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;transition:.15s}
+  .btn-primary{background:#DF0000;color:#fff}
+  .btn-primary:hover{background:#B00000}
+  .btn-ok{background:#10b981;color:#fff}
+  .btn-no{background:#ef4444;color:#fff}
+  .btn-ok:hover{background:#059669}
+  .btn-no:hover{background:#dc2626}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#1A1A1A;color:#fff;padding:10px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
+  td{padding:10px 12px;border-top:1px solid #E6E8EC}
+  .empty{text-align:center;color:#9A9A9A;padding:20px;font-size:13px}
+  .msg{padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-top:12px;display:none}
+  .msg.ok{background:#d1fae5;color:#059669;display:block}
+  .msg.err{background:#fee2e2;color:#dc2626;display:block}
+  .badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:20px;background:#FEF3C7;color:#B45309}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Panel de Administración</h1>
+  <p class="sub">Team Adrian · Gestión de Lunch</p>
+
+  <div class="card">
+    <h2>Sincronizar Excel</h2>
+    <p style="font-size:13px;color:#6B6B6B;margin-bottom:12px">
+      Sube tu Excel a Google Drive (ya lo hiciste una vez). Luego pulsa el botón para leerlo y escribir la hoja <b>Lunch</b>.
+    </p>
+    <button class="btn-primary" onclick="sincronizar()">Sincronizar ahora</button>
+    <div id="msg-sync" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Solicitudes pendientes de aprobación</h2>
+    <div id="tabla-pendientes"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Todos los lunches</h2>
+    <div id="tabla-lunch"><div class="empty">Cargando...</div></div>
+  </div>
+</div>
+
+<script>
+const API = 'PEGA_AQUI_TU_URL_EXEC';
+
+async function fetchAPI(params) {
+  const url = API + '?' + new URLSearchParams(params);
+  const res = await fetch(url);
+  return res.json();
+}
+async function postAPI(body) {
+  const res = await fetch(API, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+  });
+  return res.json();
+}
+
+async function sincronizar() {
+  const msg = document.getElementById('msg-sync');
+  msg.className = 'msg';
+  msg.textContent = 'Sincronizando...';
+  msg.classList.add('ok');
+  try {
+    const data = await postAPI({ action: 'sincronizarExcel' });
+    if (data.success) {
+      msg.className = 'msg ok';
+      msg.textContent = `✅ Sincronizado: ${data.filas} filas`;
+      cargarLunch();
+    } else {
+      msg.className = 'msg err';
+      msg.textContent = '❌ Error: ' + data.error;
+    }
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Error: ' + e.message;
+  }
+}
+
+async function cargarPendientes() {
+  const cont = document.getElementById('tabla-pendientes');
+  const data = await fetchAPI({ action: 'obtenerPendientesAdmin' });
+  if (!data.length) {
+    cont.innerHTML = '<div class="empty">No hay solicitudes pendientes</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Solicita</th><th>Destino</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Acciones</th></tr></thead><tbody>';
+  data.forEach(s => {
+    html += `<tr>
+      <td>${s.Nombre_Solicita || s.Doc_Solicita}</td>
+      <td>${s.Nombre_Destino || s.Doc_Destino}</td>
+      <td>${s.Fecha}</td>
+      <td>${s.Hora_Origen}</td>
+      <td>${s.Hora_Destino}</td>
+      <td>
+        <button class="btn-ok" onclick="aprobar('${s.ID}', true)">Aprobar</button>
+        <button class="btn-no" onclick="aprobar('${s.ID}', false)">Rechazar</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+async function aprobar(id, aprobado) {
+  const data = await postAPI({ action: 'aprobarAdmin', id, aprobado });
+  if (data.success) {
+    alert(aprobado ? 'Aprobado ✅' : 'Rechazado ❌');
+    cargarPendientes();
+    cargarLunch();
+  } else {
+    alert('Error: ' + data.error);
+  }
+}
+
+async function cargarLunch() {
+  const cont = document.getElementById('tabla-lunch');
+  const data = await fetchAPI({ action: 'obtenerTodos' });
+  if (!data.length) {
+    cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Documento</th><th>Nombre</th><th>Fecha</th><th>Lunch</th><th>Manager</th></tr></thead><tbody>';
+  data.forEach(l => {
+    html += `<tr>
+      <td>${l.Documento}</td>
+      <td>${l.Nombre}</td>
+      <td>${l.Fecha || '-'}</td>
+      <td><span class="badge">${l.Hora_Lunch || '-'}</span></td>
+      <td>${l.Manager || '-'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+cargarPendientes();
+cargarLunch();
+</script>
+</body>
+</html>
