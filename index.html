@@ -761,32 +761,32 @@ function cerrarModalCambio() {
 }
 function renderListaAgentes(lista){
 
-  const cont = document.getElementById('listaAgentes');
+    const cont = document.getElementById('listaAgentes');
 
-  let html = '';
+    let html = '';
 
-  lista.forEach((agente)=>{
+    lista.forEach((agente) => {
 
-      html += `
-      <div
-          class="agente-item"
-          onclick="seleccionarAgente('${agente.Documento}')"
-      >
+        html += `
+        <div
+            class="agente-item"
+            onclick="seleccionarAgente('${agente.Documento}')"
+        >
 
-          <div class="agente-nombre">
-              ${agente.Nombre}
-          </div>
+            <div class="agente-nombre">
+                ${agente.Nombre}
+            </div>
 
-          <div class="agente-hora">
-              Lunch: ${agente.Hora_Lunch}
-          </div>
+            <div class="agente-hora">
+                Lunch: ${agente.Hora_Lunch}
+            </div>
 
-      </div>
-      `;
+        </div>
+        `;
 
-  });
+    });
 
-  cont.innerHTML = html;
+    cont.innerHTML = html;
 
 }
 
@@ -831,23 +831,6 @@ async function seleccionarAgente(documento){
         horaDestino:destino.Hora_Lunch
 
     });
-
-    if(result.success){
-
-        cerrarModalCambio();
-
-        alert(
-            'Solicitud enviada a ' +
-            destino.Nombre
-        );
-
-    }else{
-
-        alert(result.error);
-
-    }
-}
-  );
 
     if(result.success){
 
