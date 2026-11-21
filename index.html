@@ -607,7 +607,13 @@ function logout() {
    ========================================================== */
 async function cargarLunchAgente() {
     try {
-        const hoy = new Date().toISOString().split('T')[0];
+      const hoy = new Date();
+const fechaHoy =
+    String(hoy.getDate()).padStart(2, '0') +
+    '/' +
+    String(hoy.getMonth() + 1).padStart(2, '0') +
+    '/' +
+    hoy.getFullYear();
         let data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado, fecha: hoy });
         if (!data.length) data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado });
         lunchAgente = data[data.length - 1] || null;
