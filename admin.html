@@ -1,1 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Team Adrian</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<!-- Librerías de Supabase y Excel -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Montserrat',sans-serif;background:#F7F8FA;color:#1A1A1A;padding:24px}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{font-size:22px;font-weight:800;margin-bottom:6px}
+  .sub{color:#6B6B6B;font-size:13px;margin-bottom:24px}
+  .card{background:#fff;border:1px solid #E6E8EC;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{font-size:15px;font-weight:800;margin-bottom:14px;color:#DF0000}
+  button{font-family:inherit;font-weight:800;font-size:13px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;transition:.15s}
+  .btn-primary{background:#DF0000;color:#fff}
+  .btn-primary:hover{background:#B00000}
+  .btn-ok{background:#10b981;color:#fff}
+  .btn-no{background:#ef4444;color:#fff}
+  .btn-ok:hover{background:#059669}
+  .btn-no:hover{background:#dc2626}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#1A1A1A;color:#fff;padding:10px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
+  td{padding:10px 12px;border-top:1px solid #E6E8EC}
+  .empty{text-align:center;color:#9A9A9A;padding:20px;font-size:13px}
+  .msg{padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-top:12px;display:none}
+  .msg.ok{background:#d1fae5;color:#059669;display:block}
+  .msg.err{background:#fee2e2;color:#dc2626;display:block}
+  .badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:20px;background:#FEF3C7;color:#B45309}
+  input[type="file"]{padding:10px;border:1px dashed #ccc;border-radius:8px;width:100%;background:#fafafa}
+  input[type="date"]{padding:10px;border:1px solid #E6E8EC;border-radius:8px;font-family:inherit;font-size:13px;margin-right:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Panel de Administración</h1>
+  <p class="sub">Team Adrian · Gestión de Lunch</p>
 
+  <div class="card">
+    <h2>Subir Excel de Lunch</h2>
+    <p style="font-size:13px;color:#6B6B6B;margin-bottom:12px">
+      Selecciona el archivo Excel del día. Se procesará en tu navegador y se guardará en Supabase.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <input type="date" id="fecha-excel">
+      <input type="file" id="excelFile" accept=".xlsx,.xls" style="flex:1;min-width:240px">
+    </div>
+    <button class="btn-primary" onclick="subirExcel()">Procesar y subir</button>
+    <div id="msg-sync" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Solicitudes pendientes de aprobación</h2>
+    <div id="tabla-pendientes"><div class="empty">Cargando...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Todos los lunches</h2>
+    <div id="tabla-lunch"><div class="empty">Cargando...</div></div>
+  </div>
+</div>
+<script>
+/* ==========================================================
+   CONFIGURACIÓN SUPABASE 
+   ========================================================== */
+const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
+// Crear cliente (ÚNICA VEZ)
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/* ==========================================================
+   SUBIR EXCEL Y PROCESAR
+   ========================================================== */
+async function subirExcel() {
+  const msg = document.getElementById('msg-sync');
+  msg.className = 'msg';
+  msg.textContent = 'Procesando...';
+  msg.classList.add('ok');
+
+  const file = document.getElementById('excelFile').files[0];
+  const fechaInput = document.getElementById('fecha-excel').value;
+
+  if (!file) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Selecciona un archivo Excel.';
+    return;
+  }
+  if (!fechaInput) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Selecciona la fecha del Excel.';
+    return;
+  }
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'hh:mm' });
+
+    const nuevos = [];
+    const [y, m, d] = fechaInput.split('-');
+    const fechaFormateada = `${d}/${m}/${y}`;
+
+    rows.forEach((fila, idx) => {
+      if (idx === 0) return; // Saltar cabecera
+
+      const dni = String(fila[0] || '').trim();
+      const nombre = String(fila[1] || '').trim();
+      const manager = String(fila[2] || '').trim();
+      const horaRaw = fila[3];
+
+      if (!dni || !nombre || isNaN(Number(dni))) return;
+
+      let horaLunch = '';
+      if (horaRaw instanceof Date) {
+        horaLunch = String(horaRaw.getHours()).padStart(2, '0') + ':' +
+                    String(horaRaw.getMinutes()).padStart(2, '0');
+      } else {
+        const str = String(horaRaw || '').trim();
+        const match = str.match(/^(\d{1,2}):(\d{2})/);
+        if (match) {
+          horaLunch = match[1].padStart(2, '0') + ':' + match[2];
+        }
+      }
+
+      nuevos.push({
+        documento: dni,
+        nombre: nombre,
+        manager: manager,
+        fecha: fechaFormateada,
+        hora_lunch: horaLunch,
+        duracion_min: ''
+      });
+    });
+
+    if (!nuevos.length) {
+      msg.className = 'msg err';
+      msg.textContent = '❌ No se encontraron agentes válidos en el Excel.';
+      return;
+    }
+
+    for (const n of nuevos) {
+      await supabase.from('agentes').upsert({
+        documento: n.documento,
+        nombre: n.nombre,
+        manager: n.manager
+      }, { onConflict: 'documento' });
+    }
+
+    await supabase.from('lunches').delete().eq('fecha', nuevos[0].fecha);
+    const { error: insErr } = await supabase.from('lunches').insert(nuevos);
+    
+    if (insErr) throw insErr;
+
+    msg.className = 'msg ok';
+    msg.textContent = `✅ Subidos ${nuevos.length} lunches para el ${nuevos[0].fecha}`;
+    cargarLunch();
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Error: ' + e.message;
+    console.error(e);
+  }
+}
+
+/* ==========================================================
+   SOLICITUDES PENDIENTES
+   ========================================================== */
+async function cargarPendientes() {
+  const cont = document.getElementById('tabla-pendientes');
+  try {
+    const { data, error } = await supabase
+      .from('solicitudes')
+      .select('*')
+      .eq('estado', 'aceptado_compañero');
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      cont.innerHTML = '<div class="empty">No hay solicitudes pendientes</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Solicita</th><th>Destino</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Acciones</th></tr></thead><tbody>';
+    data.forEach(s => {
+      html += `<tr>
+        <td>${s.nombre_solicita || s.doc_solicita}</td>
+        <td>${s.nombre_destino || s.doc_destino}</td>
+        <td>${s.fecha}</td>
+        <td>${s.hora_origen}</td>
+        <td>${s.hora_destino}</td>
+        <td>
+          <button class="btn-ok" onclick="aprobar('${s.id}', true)">Aprobar</button>
+          <button class="btn-no" onclick="aprobar('${s.id}', false)">Rechazar</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+async function aprobar(id, aprobado) {
+  try {
+    const { data: sol, error: e1 } = await supabase
+      .from('solicitudes').select('*').eq('id', id).single();
+    if (e1) throw e1;
+
+    const nuevoEstado = aprobado ? 'aprobado_admin' : 'rechazado';
+    const { error: e2 } = await supabase
+      .from('solicitudes').update({ estado: nuevoEstado }).eq('id', id);
+    if (e2) throw e2;
+
+    if (aprobado) {
+      await supabase.from('lunches')
+        .update({ hora_lunch: sol.hora_destino })
+        .eq('documento', sol.doc_solicita)
+        .eq('fecha', sol.fecha);
+
+      await supabase.from('lunches')
+        .update({ hora_lunch: sol.hora_origen })
+        .eq('documento', sol.doc_destino)
+        .eq('fecha', sol.fecha);
+    }
+
+    alert(aprobado ? 'Aprobado ✅' : 'Rechazado ❌');
+    cargarPendientes();
+    cargarLunch();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+/* ==========================================================
+   LISTADO DE LUNCHES
+   ========================================================== */
+async function cargarLunch() {
+  const cont = document.getElementById('tabla-lunch');
+  try {
+    const { data, error } = await supabase.from('lunches').select('*').order('fecha', { ascending: false });
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Documento</th><th>Nombre</th><th>Fecha</th><th>Lunch</th><th>Manager</th></tr></thead><tbody>';
+    data.forEach(l => {
+      html += `<tr>
+        <td>${l.documento}</td>
+        <td>${l.nombre}</td>
+        <td>${l.fecha || '-'}</td>
+        <td><span class="badge">${l.hora_lunch || '-'}</span></td>
+        <td>${l.manager || '-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+cargarPendientes();
+cargarLunch();
+</script>
+</body>
+</html>
