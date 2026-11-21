@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Team Adrian</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<!-- Librerías de Supabase y Excel -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -65,10 +66,13 @@
 
 <script>
 /* ==========================================================
-   CONFIGURACIÓN SUPABASE
+   CONFIGURACIÓN SUPABASE (AQUÍ VAN TUS DATOS REALES)
    ========================================================== */
-const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';  // ← la Project URL de Settings → API
+// ⚠️ CAMBIA ESTO POR TU URL REAL (ej: https://abcde.supabase.co)
+const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
+
+// Crear cliente
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ==========================================================
@@ -98,6 +102,7 @@ async function subirExcel() {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    // header:1 nos da arrays de filas [ [A, B, C, D], [...] ]
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'hh:mm' });
 
     const nuevos = [];
@@ -105,7 +110,7 @@ async function subirExcel() {
     const fechaFormateada = `${d}/${m}/${y}`;
 
     rows.forEach((fila, idx) => {
-      if (idx === 0) return; // saltar cabecera (DNI, NOMBRE, TEAM LEADER, HORA)
+      if (idx === 0) return; // Saltar la cabecera (DNI, NOMBRE, TEAM LEADER, HORA)
 
       const dni = String(fila[0] || '').trim();
       const nombre = String(fila[1] || '').trim();
@@ -114,7 +119,7 @@ async function subirExcel() {
 
       if (!dni || !nombre || isNaN(Number(dni))) return;
 
-      // Normalizar hora: puede venir como "10:00:00", "10:00" o Date
+      // Normalizar la hora: si viene como "10:00:00" o Date
       let horaLunch = '';
       if (horaRaw instanceof Date) {
         horaLunch = String(horaRaw.getHours()).padStart(2, '0') + ':' +
@@ -143,7 +148,7 @@ async function subirExcel() {
       return;
     }
 
-    // 1. Insertar agentes (ignorar duplicados)
+    // 1. Insertar/Actualizar Agentes
     for (const n of nuevos) {
       await supabase.from('agentes').upsert({
         documento: n.documento,
@@ -155,6 +160,7 @@ async function subirExcel() {
     // 2. Borrar lunches de esa fecha y reinsertar
     await supabase.from('lunches').delete().eq('fecha', nuevos[0].fecha);
     const { error: insErr } = await supabase.from('lunches').insert(nuevos);
+    
     if (insErr) throw insErr;
 
     msg.className = 'msg ok';
