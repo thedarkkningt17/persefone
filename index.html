@@ -803,11 +803,16 @@ function cerrarModalCambio() {
     renderListaAgentes(filtrados);
 
 }
-  async function seleccionarAgente(index){
+async function seleccionarAgente(documento){
 
-    const destino = listaOtrosAgentes[index];
+    const destino = listaOtrosAgentes.find(
+        a => String(a.Documento).trim() === String(documento).trim()
+    );
 
-    if(!destino)return;
+    if(!destino){
+        alert('No se encontró el agente seleccionado');
+        return;
+    }
 
     const result = await postAPI({
 
@@ -825,6 +830,23 @@ function cerrarModalCambio() {
         horaDestino:destino.Hora_Lunch
 
     });
+
+    if(result.success){
+
+        cerrarModalCambio();
+
+        alert(
+            'Solicitud enviada a ' +
+            destino.Nombre
+        );
+
+    }else{
+
+        alert(result.error);
+
+    }
+}
+  );
 
     if(result.success){
 
