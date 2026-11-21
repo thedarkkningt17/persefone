@@ -5,17 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Team Adrian</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<!-- Librerías de Supabase y Excel -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Montserrat',sans-serif;background:#F7F8FA;color:#1A1A1A;padding:24px}
   .wrap{max-width:1100px;margin:0 auto}
+  
+  /* Estilos del Login */
+  #login-screen{display:flex;justify-content:center;align-items:center;height:80vh;}
+  .login-card{background:#fff;border:1px solid #E6E8EC;border-radius:12px;padding:30px;width:100%;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,.08);}
+  .login-card h2{text-align:center;color:#DF0000;margin-bottom:20px;font-weight:800;}
+  .login-card input{width:100%;padding:12px;margin-bottom:15px;border:1px solid #E6E8EC;border-radius:8px;font-family:inherit;}
+  .login-card button{width:100%;background:#DF0000;color:#fff;padding:12px;border-radius:8px;border:none;font-weight:800;font-size:15px;cursor:pointer;transition:.15s;}
+  .login-card button:hover{background:#B00000;}
+  .login-card .error{color:#dc2626;font-size:13px;margin-top:10px;text-align:center;display:none;font-weight:700;}
+
+  /* Estilos generales */
   h1{font-size:22px;font-weight:800;margin-bottom:6px}
-  .sub{color:#6B6B6B;font-size:13px;margin-bottom:24px}
+  .sub{color:#6B6B6B;font-size:13px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;}
+  .btn-logout{background:#fff;color:#DF0000;border:1px solid #FAD4D4;padding:6px 12px;border-radius:6px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;}
+  .btn-logout:hover{background:#FFF0F0;}
+  
   .card{background:#fff;border:1px solid #E6E8EC;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-  .card h2{font-size:15px;font-weight:800;margin-bottom:14px;color:#DF0000}
+  .card h2{font-size:15px;font-weight:800;margin-bottom:14px;color:#DF0000;display:flex;justify-content:space-between;align-items:center;}
+  
   button{font-family:inherit;font-weight:800;font-size:13px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;transition:.15s}
   .btn-primary{background:#DF0000;color:#fff}
   .btn-primary:hover{background:#B00000}
@@ -23,6 +37,9 @@
   .btn-no{background:#ef4444;color:#fff}
   .btn-ok:hover{background:#059669}
   .btn-no:hover{background:#dc2626}
+  
+  select{padding:10px;border:1px solid #E6E8EC;border-radius:8px;font-family:inherit;font-size:13px;background:#fff;}
+  
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{background:#1A1A1A;color:#fff;padding:10px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
   td{padding:10px 12px;border-top:1px solid #E6E8EC}
@@ -36,9 +53,25 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ================= PANTALLA DE LOGIN ================= -->
+<div id="login-screen">
+  <div class="login-card">
+    <h2>Acceso Administrativo</h2>
+    <input type="text" id="admin-user" placeholder="Usuario">
+    <input type="password" id="admin-pass" placeholder="Contraseña" onkeydown="if(event.key === 'Enter') loginAdmin()">
+    <button onclick="loginAdmin()">Ingresar al Panel</button>
+    <div id="login-error" class="error">Usuario o contraseña incorrectos.</div>
+  </div>
+</div>
+
+<!-- ================= PANEL DE ADMIN ================= -->
+<div id="admin-panel" class="wrap" style="display:none;">
   <h1>Panel de Administración</h1>
-  <p class="sub">Team Adrian · Gestión de Lunch</p>
+  <p class="sub">
+    Team Adrian · Gestión de Lunch
+    <button class="btn-logout" onclick="logoutAdmin()">Cerrar Sesión</button>
+  </p>
 
   <div class="card">
     <h2>Subir Excel de Lunch</h2>
@@ -59,19 +92,58 @@
   </div>
 
   <div class="card">
-    <h2>Todos los lunches</h2>
+    <h2>
+      Todos los lunches
+      <!-- FILTRO DE HORAS -->
+      <select id="filtro-hora" onchange="cargarLunch()">
+        <option value="">Todas las horas</option>
+        <option value="10:00">10:00 AM</option>
+        <option value="10:30">10:30 AM</option>
+        <option value="11:00">11:00 AM</option>
+        <option value="11:30">11:30 AM</option>
+        <option value="12:00">12:00 PM</option>
+        <option value="12:30">12:30 PM</option>
+        <option value="01:00">01:00 PM</option>
+        <option value="01:30">01:30 PM</option>
+        <option value="02:00">02:00 PM</option>
+        <option value="02:30">02:30 PM</option>
+      </select>
+    </h2>
     <div id="tabla-lunch"><div class="empty">Cargando...</div></div>
   </div>
 </div>
 
 <script>
 /* ==========================================================
+   CONFIGURACIÓN Y LÓGICA DE LOGIN
+   ========================================================== */
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = 'TeamAdrian2026';
+
+function loginAdmin() {
+  const user = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value.trim();
+  
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    // Cargar datos iniciales
+    cargarPendientes();
+    cargarLunch();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+function logoutAdmin() {
+  location.reload(); // Recarga la página para volver a bloquearla
+}
+
+/* ==========================================================
    CONFIGURACIÓN SUPABASE 
    ========================================================== */
 const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
-
-// Usamos el nombre 'db' para evitar el conflicto con la variable global de la librería
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ==========================================================
@@ -108,7 +180,7 @@ async function subirExcel() {
     const fechaFormateada = `${d}/${m}/${y}`;
 
     rows.forEach((fila, idx) => {
-      if (idx === 0) return;
+      if (idx === 0) return; // Saltar cabecera
 
       const dni = String(fila[0] || '').trim();
       const nombre = String(fila[1] || '').trim();
@@ -238,16 +310,25 @@ async function aprobar(id, aprobado) {
 }
 
 /* ==========================================================
-   LISTADO DE LUNCHES
+   LISTADO DE LUNCHES (CON FILTRO)
    ========================================================== */
 async function cargarLunch() {
   const cont = document.getElementById('tabla-lunch');
+  const filtroHora = document.getElementById('filtro-hora').value;
+
   try {
-    const { data, error } = await db.from('lunches').select('*').order('fecha', { ascending: false });
+    let query = db.from('lunches').select('*').order('fecha', { ascending: false });
+    
+    // Aplicamos el filtro de hora si se seleccionó una opción
+    if (filtroHora !== '') {
+      query = query.eq('hora_lunch', filtroHora);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
     if (!data || !data.length) {
-      cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
+      cont.innerHTML = '<div class="empty">No hay lunches cargados con ese filtro</div>';
       return;
     }
 
@@ -267,9 +348,6 @@ async function cargarLunch() {
     cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
   }
 }
-
-cargarPendientes();
-cargarLunch();
 </script>
 </body>
 </html>
