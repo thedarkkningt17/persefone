@@ -759,30 +759,31 @@ function cerrarModalCambio() {
     .add('hidden');
 
 }
-  async function seleccionarAgente
+function renderListaAgentes(lista){
 
   const cont = document.getElementById('listaAgentes');
 
   let html = '';
 
-  lista.forEach((agente,index)=>{
+  lista.forEach((agente)=>{
 
       html += `
-<div
-    class="agente-item"
-    onclick="seleccionarAgente('${agente.Documento}')"
->
+      <div
+          class="agente-item"
+          onclick="seleccionarAgente('${agente.Documento}')"
+      >
 
-    <div class="agente-nombre">
-        ${agente.Nombre}
-    </div>
+          <div class="agente-nombre">
+              ${agente.Nombre}
+          </div>
 
-    <div class="agente-hora">
-        Lunch: ${agente.Hora_Lunch}
-    </div>
+          <div class="agente-hora">
+              Lunch: ${agente.Hora_Lunch}
+          </div>
 
-</div>
-`;
+      </div>
+      `;
+
   });
 
   cont.innerHTML = html;
