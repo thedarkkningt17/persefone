@@ -587,47 +587,22 @@ button{font-family:inherit}
 
 <script>
 /* ==========================================================
-   CONFIGURACIÓN
+   CONFIGURACIÓN SUPABASE
    ========================================================== */
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzI8WBqTn6415ZfCVU4b0G29OFK7qQLzARupttnwmFFhYVyaZziYp1aoVuL-zhAYpre-w/exec'; // ← cambia esto
+const SUPABASE_URL = 'PEGA_AQUI_TU_PROJECT_URL';   // ej: https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'PEGA_AQUI_TU_ANON_KEY'; // ej: eyJhbGci...
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ==========================================================
    VARIABLES GLOBALES
    ========================================================== */
 let agenteLogueado = "";
 let lunchAgente = null;
-let listaOtrosAgentes = [];  
+let listaOtrosAgentes = [];
 
 /* ==========================================================
-   HELPERS API
+   HELPERS
    ========================================================== */
-async function leerRespuestaAPI(res) {
-    const texto = await res.text();
-    let data;
-    try {
-        data = JSON.parse(texto);
-    } catch (e) {
-        throw new Error('El servidor no devolvió JSON. Comprueba la URL /exec y el despliegue de Apps Script.');
-    }
-    if (!res.ok) throw new Error(data.error || `Error HTTP ${res.status}`);
-    return data;
-}
-
-async function fetchAPI(params) {
-    const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params);
-    const res = await fetch(url);
-    return leerRespuestaAPI(res);
-}
-async function postAPI(body) {
-    const url = APPS_SCRIPT_URL + '?action=' + encodeURIComponent(body.action || '');
-    const res = await fetch(url, {
-        method: 'POST',
-        body: JSON.stringify(body),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-    });
-    return leerRespuestaAPI(res);
-}
-
 function mostrarError(msg) {
     const el = document.getElementById('error-msg');
     el.innerText = msg;
@@ -639,13 +614,18 @@ function mostrarError(msg) {
    ========================================================== */
 async function login() {
     const documento = document.getElementById('email-input').value.trim();
-    if(!documento) return;
+    if (!documento) return;
 
     try {
-        const agentes = await fetchAPI({ action: 'obtenerAgentes' });
-        const agente = agentes.find(a => String(a.Documento).trim() === documento);
+        const { data: agentes, error } = await supabase
+            .from('agentes')
+            .select('*')
+            .eq('documento', documento);
 
-        if (agente) {
+        if (error) throw error;
+
+        if (agentes && agentes.length > 0) {
+            const agente = agentes[0];
             agenteLogueado = documento;
             document.getElementById('error-msg').style.display = 'none';
             document.getElementById('login-section').classList.add('hidden');
@@ -653,11 +633,11 @@ async function login() {
             document.getElementById('logout-btn').classList.remove('hidden');
             document.getElementById('user-chip').classList.remove('hidden');
 
-            const nombre = agente.Nombre || "Agente";
+            const nombre = agente.nombre || "Agente";
             document.getElementById('dashGreeting').innerHTML = `Hola, <span class="accent">${nombre.split(' ')[0]}</span>`;
             document.getElementById('header-user-name').innerText = nombre;
             document.getElementById('header-user-doc').innerText = 'Doc: ' + documento;
-            document.getElementById('header-avatar').innerText = nombre.substring(0,2).toUpperCase();
+            document.getElementById('header-avatar').innerText = nombre.substring(0, 2).toUpperCase();
 
             await cargarLunchAgente();
             await cargarSolicitudesPendientes();
@@ -686,16 +666,32 @@ function logout() {
    ========================================================== */
 async function cargarLunchAgente() {
     try {
-      const hoy = new Date();
-const fechaHoy =
-    String(hoy.getDate()).padStart(2, '0') +
-    '/' +
-    String(hoy.getMonth() + 1).padStart(2, '0') +
-    '/' +
-    hoy.getFullYear();
-        let data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado, fecha: fechaHoy });
-        if (!data.length) data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado });
-        lunchAgente = data[data.length - 1] || null;
+        const hoy = new Date();
+        const fechaHoy =
+            String(hoy.getDate()).padStart(2, '0') + '/' +
+            String(hoy.getMonth() + 1).padStart(2, '0') + '/' +
+            hoy.getFullYear();
+
+        // Primero buscar el de hoy; si no hay, el más reciente
+        let { data, error } = await supabase
+            .from('lunches')
+            .select('*')
+            .eq('documento', agenteLogueado)
+            .eq('fecha', fechaHoy);
+
+        if (error) throw error;
+
+        if (!data || !data.length) {
+            const res = await supabase
+                .from('lunches')
+                .select('*')
+                .eq('documento', agenteLogueado)
+                .order('fecha', { ascending: false });
+            if (res.error) throw res.error;
+            data = res.data;
+        }
+
+        lunchAgente = (data && data.length) ? data[data.length - 1] : null;
         renderLunch();
     } catch (e) {
         document.getElementById('mi-lunch').innerHTML = '<p style="color:#EF4444;font-size:13px">Error al cargar el lunch.</p>';
@@ -711,10 +707,10 @@ function renderLunch() {
     }
     cont.innerHTML = `
         <div class="lunch-card__body">
-            <div class="lunch-card__time">${lunchAgente.Hora_Lunch || '--:--'}</div>
+            <div class="lunch-card__time">${lunchAgente.hora_lunch || '--:--'}</div>
             <div class="lunch-card__meta">
-                <strong>${lunchAgente.Nombre || ''}</strong>
-                <span>${lunchAgente.Fecha || 'Sin fecha'} · ${lunchAgente.Manager || ''}</span>
+                <strong>${lunchAgente.nombre || ''}</strong>
+                <span>${lunchAgente.fecha || 'Sin fecha'} · ${lunchAgente.manager || ''}</span>
             </div>
             <div class="lunch-card__actions">
                 <button class="btn-cambio" onclick="abrirIntercambio()">Proponer cambio</button>
@@ -723,130 +719,88 @@ function renderLunch() {
     `;
 }
 
+/* ==========================================================
+   MODAL DE INTERCAMBIO
+   ========================================================== */
 async function abrirIntercambio() {
+    if (!lunchAgente) {
+        alert('No tienes lunch para intercambiar');
+        return;
+    }
 
-  if (!lunchAgente) {
-    alert('No tienes lunch para intercambiar');
-    return;
-  }
+    try {
+        const { data: todos, error } = await supabase
+            .from('lunches')
+            .select('*')
+            .eq('fecha', lunchAgente.fecha || '');
+        if (error) throw error;
 
-  const fecha = lunchAgente.Fecha;
+        listaOtrosAgentes = (todos || []).filter(l =>
+            String(l.documento).trim() !== agenteLogueado && l.hora_lunch
+        );
 
-  const todos = await fetchAPI({
-    action:'obtenerTodos',
-    fecha:fecha || ''
-  });
-
-  listaOtrosAgentes = todos.filter(l =>
-    String(l.Documento).trim() !== agenteLogueado &&
-    l.Hora_Lunch
-  );
-
-  renderListaAgentes(listaOtrosAgentes);
-
-  document
-    .getElementById('modalCambio')
-    .classList
-    .remove('hidden');
-
+        renderListaAgentes(listaOtrosAgentes);
+        document.getElementById('modalCambio').classList.remove('hidden');
+    } catch (e) {
+        alert('Error al cargar compañeros: ' + e.message);
+        console.error(e);
+    }
 }
-  
+
 function cerrarModalCambio() {
-
-  document
-    .getElementById('modalCambio')
-    .classList
-    .add('hidden');
-
+    document.getElementById('modalCambio').classList.add('hidden');
 }
-function renderListaAgentes(lista){
 
+function renderListaAgentes(lista) {
     const cont = document.getElementById('listaAgentes');
-
     let html = '';
-
     lista.forEach((agente) => {
-
         html += `
-        <div
-            class="agente-item"
-            onclick="seleccionarAgente('${agente.Documento}')"
-        >
-
-            <div class="agente-nombre">
-                ${agente.Nombre}
-            </div>
-
-            <div class="agente-hora">
-                Lunch: ${agente.Hora_Lunch}
-            </div>
-
-        </div>
-        `;
-
+        <div class="agente-item" onclick="seleccionarAgente('${agente.documento}')">
+            <div class="agente-nombre">${agente.nombre}</div>
+            <div class="agente-hora">Lunch: ${agente.hora_lunch}</div>
+        </div>`;
     });
-
     cont.innerHTML = html;
-
 }
 
-  function filtrarAgentes(){
-
-    const texto = document
-        .getElementById('buscarAgente')
-        .value
-        .toLowerCase();
-
+function filtrarAgentes() {
+    const texto = document.getElementById('buscarAgente').value.toLowerCase();
     const filtrados = listaOtrosAgentes.filter(a =>
-        a.Nombre.toLowerCase().includes(texto)
+        (a.nombre || '').toLowerCase().includes(texto)
     );
-
     renderListaAgentes(filtrados);
-
 }
-async function seleccionarAgente(documento){
 
+async function seleccionarAgente(documento) {
     const destino = listaOtrosAgentes.find(
-        a => String(a.Documento).trim() === String(documento).trim()
+        a => String(a.documento).trim() === String(documento).trim()
     );
 
-    if(!destino){
+    if (!destino) {
         alert('No se encontró el agente seleccionado');
         return;
     }
 
-    const result = await postAPI({
-
-        action:'solicitarCambio',
-
-        docSolicita:agenteLogueado,
-        nombreSolicita:lunchAgente.Nombre,
-
-        docDestino:destino.Documento,
-        nombreDestino:destino.Nombre,
-
-        fecha:lunchAgente.Fecha,
-
-        horaOrigen:lunchAgente.Hora_Lunch,
-        horaDestino:destino.Hora_Lunch
-
-    });
-
-    if(result.success){
+    try {
+        const { error } = await supabase.from('solicitudes').insert({
+            doc_solicita: agenteLogueado,
+            nombre_solicita: lunchAgente.nombre,
+            doc_destino: destino.documento,
+            nombre_destino: destino.nombre,
+            fecha: lunchAgente.fecha,
+            hora_origen: lunchAgente.hora_lunch,
+            hora_destino: destino.hora_lunch,
+            estado: 'pendiente'
+        });
+        if (error) throw error;
 
         cerrarModalCambio();
-
-        alert(
-            'Solicitud enviada a ' +
-            destino.Nombre
-        );
-
-    }else{
-
-        alert(result.error);
-
+        alert('Solicitud enviada a ' + destino.nombre);
+    } catch (e) {
+        alert('Error: ' + e.message);
+        console.error(e);
     }
-
 }
 
 /* ==========================================================
@@ -855,19 +809,26 @@ async function seleccionarAgente(documento){
 async function cargarSolicitudesPendientes() {
     const cont = document.getElementById('solicitudes-pendientes');
     try {
-        const data = await fetchAPI({ action: 'obtenerSolicitudes', documento: agenteLogueado });
-        if (!data.length) {
+        const { data, error } = await supabase
+            .from('solicitudes')
+            .select('*')
+            .eq('doc_destino', agenteLogueado)
+            .eq('estado', 'pendiente');
+        if (error) throw error;
+
+        if (!data || !data.length) {
             cont.innerHTML = '<p style="color:#9A9A9A;font-size:13px">No tienes solicitudes pendientes.</p>';
             return;
         }
+
         let html = '';
         data.forEach(s => {
             html += `
             <div class="solicitud-item">
-                <p><b>${s.Nombre_Solicita || s.Doc_Solicita}</b> te propone cambiar su lunch <b>${s.Hora_Origen}</b> por el tuyo <b>${s.Hora_Destino}</b> el ${s.Fecha}.</p>
+                <p><b>${s.nombre_solicita || s.doc_solicita}</b> te propone cambiar su lunch <b>${s.hora_origen}</b> por el tuyo <b>${s.hora_destino}</b> el ${s.fecha}.</p>
                 <div>
-                    <button class="btn-ok" onclick="responder('${s.ID}','aceptado_compañero')">Aceptar</button>
-                    <button class="btn-no" onclick="responder('${s.ID}','rechazado')">Rechazar</button>
+                    <button class="btn-ok" onclick="responder('${s.id}','aceptado_compañero')">Aceptar</button>
+                    <button class="btn-no" onclick="responder('${s.id}','rechazado')">Rechazar</button>
                 </div>
             </div>`;
         });
@@ -879,13 +840,84 @@ async function cargarSolicitudesPendientes() {
 }
 
 async function responder(id, respuesta) {
-    const r = await postAPI({ action: 'responderSolicitud', id, respuesta });
-    if (r.success) {
+    try {
+        const { error } = await supabase
+            .from('solicitudes')
+            .update({ estado: respuesta })
+            .eq('id', id);
+        if (error) throw error;
         alert(respuesta === 'aceptado_compañero' ? 'Aceptado. Queda pendiente de aprobación del admin.' : 'Rechazado.');
         cargarSolicitudesPendientes();
-    } else alert('Error: ' + r.error);
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
 }
 
+/* ==========================================================
+   RELOJ
+   ========================================================== */
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function actualizarReloj(){
+    const now = new Date();
+    const clockEl = document.getElementById('dashClock');
+    const dateEl = document.getElementById('dashDate');
+    const topDateEl = document.getElementById('topbarDate');
+
+    if (clockEl) clockEl.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+
+    const dia = DIAS[now.getDay()];
+    const diaCap = dia.charAt(0).toUpperCase() + dia.slice(1);
+    if (dateEl) dateEl.textContent = `${diaCap}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`.toUpperCase();
+    if (topDateEl) topDateEl.textContent = `${diaCap}, ${pad2(now.getDate())}/${pad2(now.getMonth()+1)}`;
+}
+actualizarReloj();
+setInterval(actualizarReloj, 1000);
+
+/* ==========================================================
+   SIDEBAR
+   ========================================================== */
+const app = document.getElementById('app');
+const collapseBtn = document.getElementById('collapseBtn');
+const hamburger = document.getElementById('hamburger');
+const overlay = document.getElementById('overlay');
+
+function esMovil(){ return window.matchMedia('(max-width: 880px)').matches; }
+
+function abrirMenuMovil(){
+    app.classList.add('is-mobile-open');
+    overlay.classList.add('is-visible');
+}
+function cerrarMenuMovil(){
+    if (!esMovil()) return;
+    app.classList.remove('is-mobile-open');
+    overlay.classList.remove('is-visible');
+}
+function toggleMenuMovil(){
+    if (app.classList.contains('is-mobile-open')) cerrarMenuMovil();
+    else abrirMenuMovil();
+}
+
+if (collapseBtn){
+    collapseBtn.addEventListener('click', () => {
+        app.classList.toggle('is-collapsed');
+        try { localStorage.setItem('mm-agente-sidebar-collapsed', app.classList.contains('is-collapsed') ? '1' : '0'); } catch(e){}
+    });
+}
+if (hamburger) hamburger.addEventListener('click', toggleMenuMovil);
+if (overlay) overlay.addEventListener('click', cerrarMenuMovil);
+
+window.addEventListener('resize', () => {
+    if (!esMovil()){ app.classList.remove('is-mobile-open'); overlay.classList.remove('is-visible'); }
+});
+
+try {
+    if (localStorage.getItem('mm-agente-sidebar-collapsed') === '1' && !esMovil()){
+        app.classList.add('is-collapsed');
+    }
+} catch(e){}
 /* ==========================================================
    RELOJ
    ========================================================== */
