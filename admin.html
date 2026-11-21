@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Team Adrian</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Montserrat',sans-serif;background:#F7F8FA;color:#1A1A1A;padding:24px}
@@ -28,6 +30,8 @@
   .msg.ok{background:#d1fae5;color:#059669;display:block}
   .msg.err{background:#fee2e2;color:#dc2626;display:block}
   .badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:20px;background:#FEF3C7;color:#B45309}
+  input[type="file"]{padding:10px;border:1px dashed #ccc;border-radius:8px;width:100%;background:#fafafa}
+  input[type="date"]{padding:10px;border:1px solid #E6E8EC;border-radius:8px;font-family:inherit;font-size:13px;margin-right:8px}
 </style>
 </head>
 <body>
@@ -36,11 +40,15 @@
   <p class="sub">Team Adrian · Gestión de Lunch</p>
 
   <div class="card">
-    <h2>Sincronizar Excel</h2>
+    <h2>Subir Excel de Lunch</h2>
     <p style="font-size:13px;color:#6B6B6B;margin-bottom:12px">
-      Sube tu Excel a Google Drive (ya lo hiciste una vez). Luego pulsa el botón para leerlo y escribir la hoja <b>Lunch</b>.
+      Selecciona el archivo Excel del día. Se procesará en tu navegador y se guardará en Supabase.
     </p>
-    <button class="btn-primary" onclick="sincronizar()">Sincronizar ahora</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <input type="date" id="fecha-excel">
+      <input type="file" id="excelFile" accept=".xlsx,.xls" style="flex:1;min-width:240px">
+    </div>
+    <button class="btn-primary" onclick="subirExcel()">Procesar y subir</button>
     <div id="msg-sync" class="msg"></div>
   </div>
 
@@ -56,124 +64,212 @@
 </div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzI8WBqTn6415ZfCVU4b0G29OFK7qQLzARupttnwmFFhYVyaZziYp1aoVuL-zhAYpre-w/exec'; // URL del despliegue de Apps Script que termina en /exec
+/* ==========================================================
+   CONFIGURACIÓN SUPABASE
+   ========================================================== */
+const SUPABASE_URL = 'PEGA_AQUI_TU_PROJECT_URL';
+const SUPABASE_ANON_KEY = 'PEGA_AQUI_TU_ANON_KEY';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function leerRespuesta(res) {
-  const texto = await res.text();
-  let data;
-  try {
-    data = JSON.parse(texto);
-  } catch (e) {
-    throw new Error('El servidor no devolvió JSON. Comprueba la URL /exec y el despliegue de Apps Script.');
-  }
-  if (!res.ok) throw new Error(data.error || `Error HTTP ${res.status}`);
-  return data;
-}
-
-async function fetchAPI(params) {
-  const url = API + '?' + new URLSearchParams(params);
-  const res = await fetch(url);
-  return leerRespuesta(res);
-}
-
-async function postAPI(body) {
-  // Enviamos la acción por URL y por cuerpo para evitar que se pierda al interpretar el POST.
-  const url = API + '?action=' + encodeURIComponent(body.action || '');
-  const res = await fetch(url, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-  });
-  return leerRespuesta(res);
-}
-
-async function sincronizar() {
+/* ==========================================================
+   SUBIR EXCEL Y PROCESAR
+   ========================================================== */
+async function subirExcel() {
   const msg = document.getElementById('msg-sync');
   msg.className = 'msg';
-  msg.textContent = 'Sincronizando...';
+  msg.textContent = 'Procesando...';
   msg.classList.add('ok');
+
+  const file = document.getElementById('excelFile').files[0];
+  const fechaInput = document.getElementById('fecha-excel').value;
+
+  if (!file) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Selecciona un archivo Excel.';
+    return;
+  }
+  if (!fechaInput) {
+    msg.className = 'msg err';
+    msg.textContent = '❌ Selecciona la fecha del Excel.';
+    return;
+  }
+
   try {
-    const data = await postAPI({ action: 'sincronizarExcel' });
-    if (data.success) {
-      msg.className = 'msg ok';
-      msg.textContent = `✅ Sincronizado: ${data.filas} filas`;
-      cargarLunch();
-    } else {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'hh:mm' });
+
+    // Procesar filas buscando agentes: col F (idx 5) = documento, G (idx 6) = nombre, H (idx 7) = manager
+    const nuevos = [];
+    rows.forEach((fila) => {
+      const doc = fila[5];
+      const nombre = fila[6];
+      const manager = fila[7];
+
+      const docStr = String(doc || '').trim();
+      const nombreStr = String(nombre || '').trim();
+
+      if (!docStr || !nombreStr || nombreStr.length < 3) return;
+      if (nombreStr.toUpperCase().includes('TIEMPO')) return;
+      if (nombreStr.toUpperCase().includes('HORAS')) return;
+      if (nombreStr.toUpperCase().includes('LUNCH')) return;
+      if (isNaN(Number(docStr))) return;
+
+      // Buscar hora de lunch en columnas I o J (índices 8, 9)
+      let horaLunch = '';
+      for (let c = 8; c < fila.length; c++) {
+        const v = fila[c];
+        if (v && typeof v === 'string' && /^\d{1,2}:\d{2}/.test(v.trim())) {
+          horaLunch = v.trim().slice(0, 5);
+          break;
+        }
+      }
+
+      // Convertir fecha input (YYYY-MM-DD) a DD/MM/YYYY
+      const [y, m, d] = fechaInput.split('-');
+      const fechaFormateada = `${d}/${m}/${y}`;
+
+      nuevos.push({
+        documento: docStr,
+        nombre: nombreStr,
+        manager: String(manager || '').trim(),
+        fecha: fechaFormateada,
+        hora_lunch: horaLunch,
+        duracion_min: ''
+      });
+    });
+
+    if (!nuevos.length) {
       msg.className = 'msg err';
-      msg.textContent = '❌ Error: ' + data.error;
+      msg.textContent = '❌ No se encontraron agentes válidos en el Excel.';
+      return;
     }
+
+    // 1. Insertar agentes (ignorar duplicados)
+    for (const n of nuevos) {
+      await supabase.from('agentes').upsert({
+        documento: n.documento,
+        nombre: n.nombre,
+        manager: n.manager
+      }, { onConflict: 'documento' });
+    }
+
+    // 2. Borrar lunches de esa fecha y reinsertar
+    await supabase.from('lunches').delete().eq('fecha', nuevos[0].fecha);
+    const { error: insErr } = await supabase.from('lunches').insert(nuevos);
+    if (insErr) throw insErr;
+
+    msg.className = 'msg ok';
+    msg.textContent = `✅ Subidos ${nuevos.length} lunches para el ${nuevos[0].fecha}`;
+    cargarLunch();
   } catch (e) {
     msg.className = 'msg err';
     msg.textContent = '❌ Error: ' + e.message;
+    console.error(e);
   }
 }
 
+/* ==========================================================
+   SOLICITUDES PENDIENTES
+   ========================================================== */
 async function cargarPendientes() {
   const cont = document.getElementById('tabla-pendientes');
   try {
-  const data = await fetchAPI({ action: 'obtenerPendientesAdmin' });
-  if (data.error) throw new Error(data.error);
-  if (!Array.isArray(data)) throw new Error('Respuesta inesperada al consultar solicitudes.');
-  if (!data.length) {
-    cont.innerHTML = '<div class="empty">No hay solicitudes pendientes</div>';
-    return;
-  }
-  let html = '<table><thead><tr><th>Solicita</th><th>Destino</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Acciones</th></tr></thead><tbody>';
-  data.forEach(s => {
-    html += `<tr>
-      <td>${s.Nombre_Solicita || s.Doc_Solicita}</td>
-      <td>${s.Nombre_Destino || s.Doc_Destino}</td>
-      <td>${s.Fecha}</td>
-      <td>${s.Hora_Origen}</td>
-      <td>${s.Hora_Destino}</td>
-      <td>
-        <button class="btn-ok" onclick="aprobar('${s.ID}', true)">Aprobar</button>
-        <button class="btn-no" onclick="aprobar('${s.ID}', false)">Rechazar</button>
-      </td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  cont.innerHTML = html;
+    const { data, error } = await supabase
+      .from('solicitudes')
+      .select('*')
+      .eq('estado', 'aceptado_compañero');
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      cont.innerHTML = '<div class="empty">No hay solicitudes pendientes</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Solicita</th><th>Destino</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Acciones</th></tr></thead><tbody>';
+    data.forEach(s => {
+      html += `<tr>
+        <td>${s.nombre_solicita || s.doc_solicita}</td>
+        <td>${s.nombre_destino || s.doc_destino}</td>
+        <td>${s.fecha}</td>
+        <td>${s.hora_origen}</td>
+        <td>${s.hora_destino}</td>
+        <td>
+          <button class="btn-ok" onclick="aprobar('${s.id}', true)">Aprobar</button>
+          <button class="btn-no" onclick="aprobar('${s.id}', false)">Rechazar</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
   } catch (e) {
-    cont.innerHTML = `<div class="empty">No se pudieron cargar las solicitudes: ${e.message}</div>`;
+    cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
   }
 }
 
 async function aprobar(id, aprobado) {
-  const data = await postAPI({ action: 'aprobarAdmin', id, aprobado });
-  if (data.success) {
+  try {
+    // 1. Obtener la solicitud
+    const { data: sol, error: e1 } = await supabase
+      .from('solicitudes').select('*').eq('id', id).single();
+    if (e1) throw e1;
+
+    // 2. Actualizar estado
+    const nuevoEstado = aprobado ? 'aprobado_admin' : 'rechazado';
+    const { error: e2 } = await supabase
+      .from('solicitudes').update({ estado: nuevoEstado }).eq('id', id);
+    if (e2) throw e2;
+
+    // 3. Si se aprueba, intercambiar horas en lunches
+    if (aprobado) {
+      await supabase.from('lunches')
+        .update({ hora_lunch: sol.hora_destino })
+        .eq('documento', sol.doc_solicita)
+        .eq('fecha', sol.fecha);
+
+      await supabase.from('lunches')
+        .update({ hora_lunch: sol.hora_origen })
+        .eq('documento', sol.doc_destino)
+        .eq('fecha', sol.fecha);
+    }
+
     alert(aprobado ? 'Aprobado ✅' : 'Rechazado ❌');
     cargarPendientes();
     cargarLunch();
-  } else {
-    alert('Error: ' + data.error);
+  } catch (e) {
+    alert('Error: ' + e.message);
   }
 }
 
+/* ==========================================================
+   LISTADO DE LUNCHES
+   ========================================================== */
 async function cargarLunch() {
   const cont = document.getElementById('tabla-lunch');
   try {
-  const data = await fetchAPI({ action: 'obtenerTodos' });
-  if (data.error) throw new Error(data.error);
-  if (!Array.isArray(data)) throw new Error('Respuesta inesperada al consultar lunches.');
-  if (!data.length) {
-    cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
-    return;
-  }
-  let html = '<table><thead><tr><th>Documento</th><th>Nombre</th><th>Fecha</th><th>Lunch</th><th>Manager</th></tr></thead><tbody>';
-  data.forEach(l => {
-    html += `<tr>
-      <td>${l.Documento}</td>
-      <td>${l.Nombre}</td>
-      <td>${l.Fecha || '-'}</td>
-      <td><span class="badge">${l.Hora_Lunch || '-'}</span></td>
-      <td>${l.Manager || '-'}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  cont.innerHTML = html;
+    const { data, error } = await supabase.from('lunches').select('*').order('fecha', { ascending: false });
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      cont.innerHTML = '<div class="empty">No hay lunches cargados</div>';
+      return;
+    }
+
+    let html = '<table><thead><tr><th>Documento</th><th>Nombre</th><th>Fecha</th><th>Lunch</th><th>Manager</th></tr></thead><tbody>';
+    data.forEach(l => {
+      html += `<tr>
+        <td>${l.documento}</td>
+        <td>${l.nombre}</td>
+        <td>${l.fecha || '-'}</td>
+        <td><span class="badge">${l.hora_lunch || '-'}</span></td>
+        <td>${l.manager || '-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
   } catch (e) {
-    cont.innerHTML = `<div class="empty">No se pudieron cargar los lunches: ${e.message}</div>`;
+    cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
   }
 }
 
