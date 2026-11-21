@@ -100,40 +100,37 @@ async function subirExcel() {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'hh:mm' });
 
-    // Procesar filas buscando agentes: col F (idx 5) = documento, G (idx 6) = nombre, H (idx 7) = manager
     const nuevos = [];
-    rows.forEach((fila) => {
-      const doc = fila[5];
-      const nombre = fila[6];
-      const manager = fila[7];
+    const [y, m, d] = fechaInput.split('-');
+    const fechaFormateada = `${d}/${m}/${y}`;
 
-      const docStr = String(doc || '').trim();
-      const nombreStr = String(nombre || '').trim();
+    rows.forEach((fila, idx) => {
+      if (idx === 0) return; // saltar cabecera (DNI, NOMBRE, TEAM LEADER, HORA)
 
-      if (!docStr || !nombreStr || nombreStr.length < 3) return;
-      if (nombreStr.toUpperCase().includes('TIEMPO')) return;
-      if (nombreStr.toUpperCase().includes('HORAS')) return;
-      if (nombreStr.toUpperCase().includes('LUNCH')) return;
-      if (isNaN(Number(docStr))) return;
+      const dni = String(fila[0] || '').trim();
+      const nombre = String(fila[1] || '').trim();
+      const manager = String(fila[2] || '').trim();
+      const horaRaw = fila[3];
 
-      // Buscar hora de lunch en columnas I o J (índices 8, 9)
+      if (!dni || !nombre || isNaN(Number(dni))) return;
+
+      // Normalizar hora: puede venir como "10:00:00", "10:00" o Date
       let horaLunch = '';
-      for (let c = 8; c < fila.length; c++) {
-        const v = fila[c];
-        if (v && typeof v === 'string' && /^\d{1,2}:\d{2}/.test(v.trim())) {
-          horaLunch = v.trim().slice(0, 5);
-          break;
+      if (horaRaw instanceof Date) {
+        horaLunch = String(horaRaw.getHours()).padStart(2, '0') + ':' +
+                    String(horaRaw.getMinutes()).padStart(2, '0');
+      } else {
+        const str = String(horaRaw || '').trim();
+        const match = str.match(/^(\d{1,2}):(\d{2})/);
+        if (match) {
+          horaLunch = match[1].padStart(2, '0') + ':' + match[2];
         }
       }
 
-      // Convertir fecha input (YYYY-MM-DD) a DD/MM/YYYY
-      const [y, m, d] = fechaInput.split('-');
-      const fechaFormateada = `${d}/${m}/${y}`;
-
       nuevos.push({
-        documento: docStr,
-        nombre: nombreStr,
-        manager: String(manager || '').trim(),
+        documento: dni,
+        nombre: nombre,
+        manager: manager,
         fecha: fechaFormateada,
         hora_lunch: horaLunch,
         duracion_min: ''
