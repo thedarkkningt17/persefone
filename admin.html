@@ -63,14 +63,17 @@
     <div id="tabla-lunch"><div class="empty">Cargando...</div></div>
   </div>
 </div>
+
 <script>
 /* ==========================================================
    CONFIGURACIÓN SUPABASE 
    ========================================================== */
 const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
+
 // Crear cliente (ÚNICA VEZ)
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 /* ==========================================================
    SUBIR EXCEL Y PROCESAR
    ========================================================== */
