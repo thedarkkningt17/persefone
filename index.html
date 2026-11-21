@@ -693,7 +693,7 @@ const fechaHoy =
     String(hoy.getMonth() + 1).padStart(2, '0') +
     '/' +
     hoy.getFullYear();
-        let data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado, fecha: hoy });
+        let data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado, fecha: fechaHoy });
         if (!data.length) data = await fetchAPI({ action: 'obtenerLunch', documento: agenteLogueado });
         lunchAgente = data[data.length - 1] || null;
         renderLunch();
