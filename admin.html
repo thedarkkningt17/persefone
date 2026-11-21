@@ -68,8 +68,7 @@
 /* ==========================================================
    CONFIGURACIÓN SUPABASE (AQUÍ VAN TUS DATOS REALES)
    ========================================================== */
-// ⚠️ CAMBIA ESTO POR TU URL REAL (ej: https://abcde.supabase.co)
-const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co'; 
+const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
 
 // Crear cliente
@@ -102,7 +101,6 @@ async function subirExcel() {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    // header:1 nos da arrays de filas [ [A, B, C, D], [...] ]
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'hh:mm' });
 
     const nuevos = [];
@@ -110,7 +108,7 @@ async function subirExcel() {
     const fechaFormateada = `${d}/${m}/${y}`;
 
     rows.forEach((fila, idx) => {
-      if (idx === 0) return; // Saltar la cabecera (DNI, NOMBRE, TEAM LEADER, HORA)
+      if (idx === 0) return; // Saltar la cabecera
 
       const dni = String(fila[0] || '').trim();
       const nombre = String(fila[1] || '').trim();
@@ -119,7 +117,6 @@ async function subirExcel() {
 
       if (!dni || !nombre || isNaN(Number(dni))) return;
 
-      // Normalizar la hora: si viene como "10:00:00" o Date
       let horaLunch = '';
       if (horaRaw instanceof Date) {
         horaLunch = String(horaRaw.getHours()).padStart(2, '0') + ':' +
@@ -148,7 +145,6 @@ async function subirExcel() {
       return;
     }
 
-    // 1. Insertar/Actualizar Agentes
     for (const n of nuevos) {
       await supabase.from('agentes').upsert({
         documento: n.documento,
@@ -157,7 +153,6 @@ async function subirExcel() {
       }, { onConflict: 'documento' });
     }
 
-    // 2. Borrar lunches de esa fecha y reinsertar
     await supabase.from('lunches').delete().eq('fecha', nuevos[0].fecha);
     const { error: insErr } = await supabase.from('lunches').insert(nuevos);
     
@@ -213,18 +208,15 @@ async function cargarPendientes() {
 
 async function aprobar(id, aprobado) {
   try {
-    // 1. Obtener la solicitud
     const { data: sol, error: e1 } = await supabase
       .from('solicitudes').select('*').eq('id', id).single();
     if (e1) throw e1;
 
-    // 2. Actualizar estado
     const nuevoEstado = aprobado ? 'aprobado_admin' : 'rechazado';
     const { error: e2 } = await supabase
       .from('solicitudes').update({ estado: nuevoEstado }).eq('id', id);
     if (e2) throw e2;
 
-    // 3. Si se aprueba, intercambiar horas en lunches
     if (aprobado) {
       await supabase.from('lunches')
         .update({ hora_lunch: sol.hora_destino })
