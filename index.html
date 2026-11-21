@@ -592,7 +592,7 @@ button{font-family:inherit}
    ========================================================== */
 const SUPABASE_URL = 'https://bpvovgoiefqqqzpeabvz.supabase.co';  // ← tu Project URL real
 const SUPABASE_ANON_KEY = 'sb_publishable_sNKOSRtXNpzwHl0LMBn-yQ_mbdmwy2W';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ==========================================================
    VARIABLES GLOBALES
@@ -618,7 +618,7 @@ async function login() {
     if (!documento) return;
 
     try {
-        const { data: agentes, error } = await supabase
+        const { data: agentes, error } = await db
             .from('agentes')
             .select('*')
             .eq('documento', documento);
@@ -674,7 +674,7 @@ async function cargarLunchAgente() {
             hoy.getFullYear();
 
         // Primero buscar el de hoy; si no hay, el más reciente
-        let { data, error } = await supabase
+        let { data, error } = await db
             .from('lunches')
             .select('*')
             .eq('documento', agenteLogueado)
@@ -683,7 +683,7 @@ async function cargarLunchAgente() {
         if (error) throw error;
 
         if (!data || !data.length) {
-            const res = await supabase
+            const res = await db
                 .from('lunches')
                 .select('*')
                 .eq('documento', agenteLogueado)
@@ -730,7 +730,7 @@ async function abrirIntercambio() {
     }
 
     try {
-        const { data: todos, error } = await supabase
+        const { data: todos, error } = await db
             .from('lunches')
             .select('*')
             .eq('fecha', lunchAgente.fecha || '');
@@ -784,7 +784,7 @@ async function seleccionarAgente(documento) {
     }
 
     try {
-        const { error } = await supabase.from('solicitudes').insert({
+        const { error } = await db.from('solicitudes').insert({
             doc_solicita: agenteLogueado,
             nombre_solicita: lunchAgente.nombre,
             doc_destino: destino.documento,
@@ -810,7 +810,7 @@ async function seleccionarAgente(documento) {
 async function cargarSolicitudesPendientes() {
     const cont = document.getElementById('solicitudes-pendientes');
     try {
-        const { data, error } = await supabase
+        const { data, error } = await db
             .from('solicitudes')
             .select('*')
             .eq('doc_destino', agenteLogueado)
@@ -842,7 +842,7 @@ async function cargarSolicitudesPendientes() {
 
 async function responder(id, respuesta) {
     try {
-        const { error } = await supabase
+        const { error } = await db
             .from('solicitudes')
             .update({ estado: respuesta })
             .eq('id', id);
