@@ -95,19 +95,29 @@
     <h2>
       Todos los lunches
       <!-- FILTRO DE HORAS -->
-      <select id="filtro-hora" onchange="cargarLunch()">
-        <option value="">Todas las horas</option>
-        <option value="10:00">10:00 AM</option>
-        <option value="10:30">10:30 AM</option>
-        <option value="11:00">11:00 AM</option>
-        <option value="11:30">11:30 AM</option>
-        <option value="12:00">12:00 PM</option>
-        <option value="12:30">12:30 PM</option>
-        <option value="01:00">01:00 PM</option>
-        <option value="01:30">01:30 PM</option>
-        <option value="02:00">02:00 PM</option>
-        <option value="02:30">02:30 PM</option>
-      </select>
+     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+
+  <select id="filtro-manager" onchange="cargarLunch()">
+    <option value="">Todos los coordinadores</option>
+  </select>
+
+  <select id="filtro-agente" onchange="cargarLunch()">
+    <option value="">Todos los agentes</option>
+  </select>
+  <select id="filtro-hora" onchange="cargarLunch()">
+    <option value="">Todas las horas</option>
+    <option value="10:00">10:00 AM</option>
+    <option value="10:30">10:30 AM</option>
+    <option value="11:00">11:00 AM</option>
+    <option value="11:30">11:30 AM</option>
+    <option value="12:00">12:00 PM</option>
+    <option value="12:30">12:30 PM</option>
+    <option value="01:00">01:00 PM</option>
+    <option value="01:30">01:30 PM</option>
+    <option value="02:00">02:00 PM</option>
+    <option value="02:30">02:30 PM</option>
+  </select>
+</div>
     </h2>
     <div id="tabla-lunch"><div class="empty">Cargando...</div></div>
   </div>
@@ -128,8 +138,9 @@ function loginAdmin() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-panel').style.display = 'block';
     // Cargar datos iniciales
-    cargarPendientes();
-    cargarLunch();
+   cargarFiltros();
+   cargarPendientes();
+   cargarLunch();
   } else {
     document.getElementById('login-error').style.display = 'block';
   }
@@ -326,18 +337,58 @@ async function aprobar(id, aprobado) {
 /* ==========================================================
    LISTADO DE LUNCHES (CON FILTRO)
    ========================================================== */
-async function cargarLunch() {
-  const cont = document.getElementById('tabla-lunch');
-  const filtroHora = document.getElementById('filtro-hora').value;
+async function cargarFiltros() {
+  try {
+
+    const { data, error } = await db
+      .from('lunches')
+      .select('nombre, manager');
+
+    if (error) throw error;
+
+    const agentes = [...new Set(data.map(x => x.nombre).filter(Boolean))].sort();
+    const managers = [...new Set(data.map(x => x.manager).filter(Boolean))].sort();
+
+    const selAgente = document.getElementById('filtro-agente');
+    const selManager = document.getElementById('filtro-manager');
+
+    selAgente.innerHTML =
+      '<option value="">Todos los agentes</option>';
+
+    selManager.innerHTML =
+      '<option value="">Todos los coordinadores</option>';
+
+    agentes.forEach(a => {
+      selAgente.innerHTML += `<option value="${a}">${a}</option>`;
+    });
+
+    managers.forEach(m => {
+      selManager.innerHTML += `<option value="${m}">${m}</option>`;
+    });
+
+  } catch (e) {
+    console.error(e);
+  }
+}
+ async function cargarLunch() {
+ const cont = document.getElementById('tabla-lunch');
+ const filtroHora = document.getElementById('filtro-hora').value;
+ const filtroAgente = document.getElementById('filtro-agente').value;
+ const filtroManager = document.getElementById('filtro-manager').value;
 
   try {
     let query = db.from('lunches').select('*').order('fecha', { ascending: false });
     
     // Aplicamos el filtro de hora si se seleccionó una opción
-    if (filtroHora !== '') {
-      query = query.eq('hora_lunch', filtroHora);
-    }
-
+if (filtroHora) {
+  query = query.eq('hora_lunch', filtroHora);
+}
+if (filtroAgente) {
+  query = query.eq('nombre', filtroAgente);
+}
+if (filtroManager) {
+  query = query.eq('manager', filtroManager);
+}
     const { data, error } = await query;
     if (error) throw error;
 
