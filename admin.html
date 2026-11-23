@@ -217,16 +217,30 @@ async function subirExcel() {
       return;
     }
 
-    for (const n of nuevos) {
-      await db.from('agentes').upsert({
-        documento: n.documento,
-        nombre: n.nombre,
-        manager: n.manager
-      }, { onConflict: 'documento' });
-    }
+for (const n of nuevos) {
+  await db.from('agentes').upsert({
+    documento: n.documento,
+    nombre: n.nombre,
+    manager: n.manager
+  }, { onConflict: 'documento' });
+}
 
-    await db.from('lunches').delete().eq('fecha', nuevos[0].fecha);
-    const { error: insErr } = await db.from('lunches').insert(nuevos);
+/* ELIMINAR FECHAS ANTIGUAS */
+await db
+  .from('lunches')
+  .delete()
+  .neq('fecha', fechaFormateada);
+
+/* ELIMINAR LA FECHA ACTUAL POR SI SE VUELVE A CARGAR */
+await db
+  .from('lunches')
+  .delete()
+  .eq('fecha', fechaFormateada);
+
+/* INSERTAR NUEVOS LUNCHES */
+const { error: insErr } = await db
+  .from('lunches')
+  .insert(nuevos);
     
     if (insErr) throw insErr;
 
