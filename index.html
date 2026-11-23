@@ -428,7 +428,54 @@ button{font-family:inherit}
   .dash__clock-time{font-size:24px}
   .site-footer{flex-direction:column;text-align:center;justify-content:center}
 }
-</style>
+<!-- ==================================================================== -->    
+.lunch-info{
+    background:#fafafa;
+    border:1px solid var(--mm-line);
+    border-radius:10px;
+    overflow:hidden;
+}
+
+.lunch-info-header{
+    background:linear-gradient(90deg,#DF0000,#B00000);
+    color:white;
+    padding:12px 15px;
+    font-size:13px;
+    font-weight:800;
+    letter-spacing:.3px;
+}
+
+.lunch-table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+.lunch-table th{
+    background:#f4f4f4;
+    color:#1A1A1A;
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+    padding:12px;
+    border-bottom:1px solid var(--mm-line);
+}
+
+.lunch-table td{
+    padding:12px;
+    text-align:center;
+    border-bottom:1px solid #ececec;
+    font-size:13px;
+    font-weight:600;
+}
+
+.lunch-table tbody tr:hover{
+    background:#FFF0F0;
+}
+
+.lunch-table tbody tr:last-child td{
+    border-bottom:none;
+}
+  </style>
 </head>
 <body>
 
@@ -567,6 +614,34 @@ button{font-family:inherit}
             <h3>Mi Lunch</h3>
             <div id="mi-lunch"><p style="color:#9A9A9A;font-size:13px">Cargando...</p></div>
           </div>
+
+          <div class="lunch-card">
+    <h3>Información de Tiempo de Lunch</h3>
+
+    <div class="lunch-info">
+        <div class="lunch-info-header">
+            ⏱️ Tiempo de descanso según jornada laboral
+        </div>
+
+        <table class="lunch-table">
+            <thead>
+                <tr>
+                    <th>Horas trabajadas</th>
+                    <th>Tiempo de Lunch</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>4 horas</td><td>14 min</td></tr>
+                <tr><td>5 horas</td><td>18 min</td></tr>
+                <tr><td>6 horas</td><td>22 min</td></tr>
+                <tr><td>7 horas</td><td>26 min</td></tr>
+                <tr><td>8 horas</td><td>30 min</td></tr>
+                <tr><td>9 horas</td><td>34 min</td></tr>
+                <tr><td>10 horas</td><td>38 min</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
           <div class="lunch-card">
             <h3>Solicitudes de intercambio recibidas</h3>
