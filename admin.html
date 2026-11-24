@@ -100,10 +100,13 @@
   <select id="filtro-manager" onchange="cargarLunch()">
     <option value="">Todos los coordinadores</option>
   </select>
-
-  <select id="filtro-agente" onchange="cargarLunch()">
-    <option value="">Todos los agentes</option>
-  </select>
+ <input
+  type="text"
+  id="filtro-agente"
+  placeholder="Buscar agente..."
+  onkeyup="cargarLunch()"
+  style="padding:10px;border:1px solid #E6E8EC;border-radius:8px;font-family:inherit;font-size:13px;min-width:220px;"
+>
   <select id="filtro-hora" onchange="cargarLunch()">
     <option value="">Todas las horas</option>
     <option value="10:00">10:00 AM</option>
@@ -345,8 +348,7 @@ async function cargarFiltros() {
       .select('nombre, manager');
 
     if (error) throw error;
-
-    const agentes = [...new Set(data.map(x => x.nombre).filter(Boolean))].sort();
+   
     const managers = [...new Set(data.map(x => x.manager).filter(Boolean))].sort();
 
     const selAgente = document.getElementById('filtro-agente');
@@ -384,7 +386,7 @@ if (filtroHora) {
   query = query.eq('hora_lunch', filtroHora);
 }
 if (filtroAgente) {
-  query = query.eq('nombre', filtroAgente);
+  query = query.ilike('nombre', `%${filtroAgente}%`);
 }
 if (filtroManager) {
   query = query.eq('manager', filtroManager);
