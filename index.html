@@ -429,44 +429,37 @@ button{font-family:inherit}
   .site-footer{flex-direction:column;text-align:center;justify-content:center}
 }
 /* ==================================================================== */
-.lunch-info{
-    background:#fafafa;
-    border:1px solid var(--mm-line);
-    border-radius:8px;
-    overflow:hidden;
-    max-width:420px; /* controla el ancho */
+.lunch-buttons{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:10px;
+    margin-top:10px;
 }
 
-.lunch-info-header{
-    background:linear-gradient(90deg,#DF0000,#B00000);
-    color:white;
-    padding:8px 12px;
-    font-size:11px;
+.lunch-btn-info{
+    background:linear-gradient(135deg,#DF0000,#B00000);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    padding:14px;
     font-weight:800;
-}
-
-.lunch-table{
-    width:100%;
-    border-collapse:collapse;
-}
-
-.lunch-table th{
-    background:#f4f4f4;
-    padding:8px;
-    font-size:10px;
-    font-weight:800;
-    text-transform:uppercase;
-}
-
-.lunch-table td{
-    padding:7px;
+    font-size:13px;
     text-align:center;
-    font-size:11px;
-    font-weight:600;
+    cursor:pointer;
+    transition:.25s;
+    box-shadow:0 4px 10px rgba(223,0,0,.2);
 }
 
-.lunch-table tbody tr:hover{
-    background:#FFF0F0;
+.lunch-btn-info:hover{
+    transform:translateY(-3px);
+    box-shadow:0 8px 18px rgba(223,0,0,.35);
+}
+
+.lunch-btn-info span{
+    display:block;
+    font-size:22px;
+    font-weight:900;
+    margin-top:4px;
 }
 /* ==================================================================== */    
   </style>
@@ -608,13 +601,47 @@ button{font-family:inherit}
             <h3>Mi Lunch</h3>
             <div id="mi-lunch"><p style="color:#9A9A9A;font-size:13px">Cargando...</p></div>
           </div>
-          <div class="lunch-card">
+        <div class="lunch-card">
     <h3>Información importante</h3>
-    <p style="font-size:12px; line-height:1.8;">
-        ⏱️ 4h = 14 min | 5h = 18 min | 6h = 22 min |
-        7h = 26 min | 8h = 30 min | 9h = 34 min |
-        10h = 38 min
-    </p>
+
+    <div class="lunch-buttons">
+
+        <button class="lunch-btn-info">
+            4 HORAS
+            <span>14 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            5 HORAS
+            <span>18 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            6 HORAS
+            <span>22 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            7 HORAS
+            <span>26 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            8 HORAS
+            <span>30 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            9 HORAS
+            <span>34 MIN</span>
+        </button>
+
+        <button class="lunch-btn-info">
+            10 HORAS
+            <span>38 MIN</span>
+        </button>
+
+    </div>
 </div>
           <div class="lunch-card">
             <h3>Solicitudes de intercambio recibidas</h3>
